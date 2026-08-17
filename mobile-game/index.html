@@ -161,10 +161,14 @@
 
     bestEl.textContent = 'Mejor: ' + best;
 
+    const PLANE_Y_RATIO = 0.58;
+
     const plane = {
       x: 0, y: 0, targetX: 0, trail: [],
       shield: false, invincible: 0, enginePhase: 0
     };
+
+    function planeY() { return H * PLANE_Y_RATIO; }
     let obstacles = [], coins = [], powerups = [], particles = [], stars = [], texts = [];
 
     // --- Audio (Web Audio API, sin archivos externos) ---
@@ -199,6 +203,7 @@
       canvas.width = W * dpr; canvas.height = H * dpr;
       canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      plane.y = planeY();
       if (state === 'menu') initStars();
     }
 
@@ -215,7 +220,7 @@
       scoreEl.textContent = '0';
       levelEl.textContent = 'NIVEL 1';
       comboEl.classList.remove('show');
-      plane.x = W / 2; plane.targetX = W / 2; plane.y = H * 0.28;
+      plane.x = W / 2; plane.targetX = W / 2; plane.y = planeY();
       plane.trail = []; plane.shield = false; plane.invincible = 0;
       obstacles = []; coins = []; powerups = []; particles = []; texts = [];
       shieldBar.classList.remove('show');
@@ -316,7 +321,8 @@
 
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(tilt);
+      // Base: nose down; tilt banks left/right while moving
+      ctx.rotate(Math.PI / 2 + tilt);
 
       if (invincible > 0) {
         ctx.shadowColor = '#ffd93d';
@@ -479,12 +485,12 @@
       // Smooth follow finger
       plane.x += (plane.targetX - plane.x) * 0.18;
       plane.x = Math.max(24, Math.min(W - 24, plane.x));
-      const tilt = (plane.targetX - plane.x) * 0.04;
+      plane.y = planeY();
 
       if (plane.invincible > 0) plane.invincible--;
 
-      // Engine trail
-      plane.trail.push({ x: plane.x - 18, y: plane.y + (Math.random() - 0.5) * 4, life: 1 });
+      // Engine trail (behind plane, above when falling down)
+      plane.trail.push({ x: plane.x + (Math.random() - 0.5) * 4, y: plane.y - 20, life: 1 });
       if (plane.trail.length > 20) plane.trail.shift();
       plane.trail.forEach(t => t.life -= 0.06);
       plane.trail = plane.trail.filter(t => t.life > 0);
@@ -584,7 +590,7 @@
       coins.forEach(drawCoin);
       powerups.forEach(drawPowerup);
       obstacles.forEach(drawObstacle);
-      const tilt = (plane.targetX - plane.x) * 0.04;
+      const tilt = Math.max(-0.45, Math.min(0.45, (plane.targetX - plane.x) * 0.025));
       drawPlane(plane.x, plane.y, tilt, plane.invincible);
 
       particles.forEach(p => {
@@ -673,7 +679,7 @@
         drawBackground();
         if (state === 'menu') {
           plane.x = W / 2 + Math.sin(frame * 0.02) * 40;
-          plane.y = H * 0.35;
+          plane.y = planeY();
           drawPlane(plane.x, plane.y, Math.sin(frame * 0.02) * 0.12, 0);
         }
         frame++;
