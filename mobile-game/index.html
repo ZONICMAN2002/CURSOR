@@ -138,13 +138,13 @@
   </div>
   <div id="shieldBar"><div id="shieldFill"></div></div>
   <div id="countdown"></div>
-  <div id="hint">Arrastra el dedo para mover el avión</div>
+  <div id="hint">Arrastra para mover el cohete · esquiva lo que cae de arriba</div>
   <button id="muteBtn" aria-label="Silenciar">🔊</button>
   <div id="overlay">
     <h1>Aero Fall</h1>
     <div class="subtitle">Esquiva · Colecciona · Sobrevive</div>
     <div class="instructions" id="instructions">
-      <div><span>👆</span> Arrastra el dedo para mover el avión</div>
+      <div><span>🚀</span> Tu cohete sube — esquiva obstáculos que caen</div>
       <div><span>🪙</span> Monedas = puntos extra. Cada 10 = escudo o +200 pts</div>
       <div><span>🛡️</span> Escudo azul = 1 golpe extra</div>
       <div><span>⭐</span> Estrella = invencible 3 segundos</div>
@@ -261,22 +261,25 @@
     }
 
     function spawnObstacle() {
-      const size = 24 + Math.random() * 22;
-      const types = ['rock', 'rock', 'debris', 'meteor'];
+      const size = 26 + Math.random() * 24;
+      const types = ['asteroid', 'asteroid', 'spike', 'meteor'];
       const type = types[Math.floor(Math.random() * types.length)];
       obstacles.push({
         x: size + Math.random() * (W - size * 2), y: -size - 10,
         size, type, rot: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.05,
-        verts: type === 'rock' || type === 'meteor' ? makeRockVerts(size / 2) : null,
-        hue: type === 'meteor' ? 15 : 0
+        verts: type !== 'spike' ? makeRockVerts(size / 2) : null,
+        craters: type === 'asteroid' ? [
+          { ox: -size * 0.15, oy: -size * 0.1, r: size * 0.12 },
+          { ox: size * 0.1, oy: size * 0.15, r: size * 0.08 }
+        ] : []
       });
     }
 
     function spawnCoin() {
       coins.push({
         x: 30 + Math.random() * (W - 60), y: -20,
-        r: 12, rot: 0, collected: false
+        r: 15, rot: 0, sparkle: Math.random() * Math.PI * 2, collected: false
       });
     }
 
@@ -285,7 +288,7 @@
       powerups.push({
         x: 40 + Math.random() * (W - 80), y: -30,
         type: types[Math.floor(Math.random() * types.length)],
-        rot: 0, pulse: 0
+        rot: 0, pulse: 0, ring: 0
       });
     }
 
@@ -366,43 +369,83 @@
       ctx.globalAlpha = 1;
     }
 
-    function drawPlane(x, y, tilt, invincible) {
-      // Trail
-      plane.trail.forEach((t, i) => {
-        ctx.globalAlpha = t.life * 0.4;
-        ctx.fillStyle = '#ff8c42';
+    function drawShieldBubble() {
+      const t = frame * 0.08;
+      const r = 36;
+
+      // Outer glow
+      const glow = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 1.4);
+      glow.addColorStop(0, 'rgba(78,205,196,0.15)');
+      glow.addColorStop(1, 'rgba(78,205,196,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hex energy field
+      ctx.strokeStyle = `rgba(100,220,255,${0.35 + Math.sin(t) * 0.15})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = t + (i / 6) * Math.PI * 2;
+        const px = Math.cos(a) * r, py = Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // Inner bubble
+      const bubble = ctx.createRadialGradient(0, -r * 0.3, 0, 0, 0, r);
+      bubble.addColorStop(0, 'rgba(180,255,255,0.25)');
+      bubble.addColorStop(0.6, 'rgba(78,205,196,0.12)');
+      bubble.addColorStop(1, 'rgba(45,120,200,0.05)');
+      ctx.fillStyle = bubble;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rotating arcs
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = `rgba(150,240,255,${0.4 - i * 0.1})`;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 3 * t.life, 0, Math.PI * 2);
+        ctx.arc(0, 0, r - 4 - i * 3, t * (1 + i * 0.3), t * (1 + i * 0.3) + Math.PI * 0.8);
+        ctx.stroke();
+      }
+    }
+
+    function drawPlane(x, y, tilt, invincible) {
+      // Engine trail below (rocket points up)
+      plane.trail.forEach(t => {
+        ctx.globalAlpha = t.life * 0.5;
+        const tg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, 6 * t.life);
+        tg.addColorStop(0, '#fff');
+        tg.addColorStop(0.4, '#ff8c42');
+        tg.addColorStop(1, 'rgba(255,80,30,0)');
+        ctx.fillStyle = tg;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 6 * t.life, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.globalAlpha = 1;
 
       ctx.save();
       ctx.translate(x, y);
-      // Base: nose down; tilt banks left/right while moving
-      ctx.rotate(Math.PI / 2 + tilt);
+      // Nose up; bank left/right when moving
+      ctx.rotate(-Math.PI / 2 + tilt);
 
       if (invincible > 0) {
         ctx.shadowColor = '#ffd93d';
-        ctx.shadowBlur = 20 + Math.sin(frame * 0.3) * 8;
-      } else if (plane.shield) {
-        ctx.shadowColor = '#4ecdc4';
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = 24 + Math.sin(frame * 0.3) * 10;
       }
 
-      // Shield bubble
-      if (plane.shield) {
-        ctx.strokeStyle = `rgba(78,205,196,${0.5 + Math.sin(frame * 0.1) * 0.2})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, 30, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+      if (plane.shield) drawShieldBubble();
 
       // Fuselage
       const bodyGrad = ctx.createLinearGradient(-20, 0, 25, 0);
-      bodyGrad.addColorStop(0, '#c8d0e0');
-      bodyGrad.addColorStop(1, '#f0f4ff');
+      bodyGrad.addColorStop(0, '#b8c4d8');
+      bodyGrad.addColorStop(0.5, '#eef2ff');
+      bodyGrad.addColorStop(1, '#ffffff');
       ctx.fillStyle = bodyGrad;
       ctx.beginPath();
       ctx.moveTo(24, 0);
@@ -411,32 +454,39 @@
       ctx.bezierCurveTo(-10, 10, 10, 12, 24, 0);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
       // Wings
-      ctx.fillStyle = '#ff6b6b';
+      ctx.fillStyle = '#ff5e5e';
       ctx.beginPath();
       ctx.moveTo(-4, -8); ctx.lineTo(-18, -22); ctx.lineTo(-10, -6); ctx.closePath(); ctx.fill();
       ctx.beginPath();
       ctx.moveTo(-4, 8); ctx.lineTo(-18, 22); ctx.lineTo(-10, 6); ctx.closePath(); ctx.fill();
 
       // Cockpit
-      ctx.fillStyle = '#4ecdc4';
+      const cg = ctx.createRadialGradient(10, -2, 0, 8, 0, 8);
+      cg.addColorStop(0, '#a0fff8');
+      cg.addColorStop(1, '#2dd4bf');
+      ctx.fillStyle = cg;
       ctx.beginPath();
       ctx.ellipse(8, 0, 8, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Engine flame
+      // Engine flame (below rocket, pointing down = back of upward rocket)
       plane.enginePhase += 0.4;
-      const flameLen = 14 + Math.sin(plane.enginePhase) * 6;
+      const flameLen = 16 + Math.sin(plane.enginePhase) * 8;
       const fg = ctx.createLinearGradient(-22, 0, -22 - flameLen, 0);
-      fg.addColorStop(0, '#ff8c42');
-      fg.addColorStop(0.5, '#ff6b6b');
+      fg.addColorStop(0, '#fff');
+      fg.addColorStop(0.2, '#ffaa44');
+      fg.addColorStop(0.6, '#ff5533');
       fg.addColorStop(1, 'rgba(255,50,50,0)');
       ctx.fillStyle = fg;
       ctx.beginPath();
-      ctx.moveTo(-20, -3);
+      ctx.moveTo(-20, -4);
       ctx.lineTo(-20 - flameLen, 0);
-      ctx.lineTo(-20, 3);
+      ctx.lineTo(-20, 4);
       ctx.closePath();
       ctx.fill();
 
@@ -447,75 +497,218 @@
       ctx.save();
       ctx.translate(o.x, o.y);
       ctx.rotate(o.rot);
-      if (o.type === 'rock' || o.type === 'meteor') {
-        ctx.fillStyle = o.type === 'meteor' ? '#4a3728' : '#5a6270';
-        ctx.strokeStyle = o.type === 'meteor' ? '#ff6b35' : '#8b95a5';
+
+      // Danger glow
+      ctx.shadowColor = o.type === 'meteor' ? '#ff4400' : '#ff2244';
+      ctx.shadowBlur = o.type === 'meteor' ? 18 : 10;
+
+      if (o.type === 'spike') {
+        const s = o.size * 0.55;
+        const spikeGrad = ctx.createLinearGradient(0, -s, 0, s);
+        spikeGrad.addColorStop(0, '#ff4466');
+        spikeGrad.addColorStop(0.5, '#cc1144');
+        spikeGrad.addColorStop(1, '#660022');
+        ctx.fillStyle = spikeGrad;
+        for (let i = 0; i < 4; i++) {
+          ctx.save();
+          ctx.rotate((i / 4) * Math.PI * 2);
+          ctx.beginPath();
+          ctx.moveTo(0, -s * 1.3);
+          ctx.lineTo(s * 0.35, 0);
+          ctx.lineTo(0, s * 0.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.fillStyle = '#ff6688';
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (o.type === 'meteor') {
+        // Fire tail
+        const tailGrad = ctx.createLinearGradient(0, o.size * 0.3, 0, o.size * 1.5);
+        tailGrad.addColorStop(0, 'rgba(255,150,50,0.8)');
+        tailGrad.addColorStop(1, 'rgba(255,50,0,0)');
+        ctx.fillStyle = tailGrad;
+        ctx.beginPath();
+        ctx.moveTo(-o.size * 0.2, o.size * 0.3);
+        ctx.lineTo(0, o.size * 1.4);
+        ctx.lineTo(o.size * 0.2, o.size * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#3d2817';
+        ctx.strokeStyle = '#ff7733';
         ctx.lineWidth = 2;
-        ctx.shadowColor = o.type === 'meteor' ? '#ff4500' : 'transparent';
-        ctx.shadowBlur = o.type === 'meteor' ? 12 : 0;
         ctx.beginPath();
         o.verts.forEach((v, i) => i === 0 ? ctx.moveTo(v[0], v[1]) : ctx.lineTo(v[0], v[1]));
         ctx.closePath();
         ctx.fill(); ctx.stroke();
-        if (o.type === 'meteor') {
-          ctx.fillStyle = 'rgba(255,100,30,0.6)';
-          ctx.beginPath();
-          ctx.arc(-o.size * 0.2, -o.size * 0.1, o.size * 0.15, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.fillStyle = 'rgba(255,180,60,0.7)';
+        ctx.beginPath();
+        ctx.arc(-o.size * 0.15, -o.size * 0.1, o.size * 0.18, 0, Math.PI * 2);
+        ctx.fill();
       } else {
-        ctx.fillStyle = '#d97706';
-        ctx.fillRect(-o.size / 2, -o.size / 5, o.size, o.size * 0.4);
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(-o.size / 3, -o.size / 8, o.size * 0.6, o.size * 0.25);
+        // Asteroid with craters
+        ctx.fillStyle = '#4a5568';
+        ctx.strokeStyle = '#718096';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        o.verts.forEach((v, i) => i === 0 ? ctx.moveTo(v[0], v[1]) : ctx.lineTo(v[0], v[1]));
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        (o.craters || []).forEach(cr => {
+          ctx.fillStyle = '#2d3748';
+          ctx.beginPath();
+          ctx.arc(cr.ox, cr.oy, cr.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
+
+      // Warning ring
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(255,60,80,${0.25 + Math.sin(frame * 0.15 + o.x) * 0.1})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, o.size * 0.65, 0, Math.PI * 2);
+      ctx.stroke();
+
       ctx.restore();
     }
 
     function drawCoin(c) {
+      c.sparkle += 0.05;
+      const spin = Math.abs(Math.cos(c.rot));
+      const r = c.r;
+
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.scale(Math.abs(Math.cos(c.rot)), 1);
-      ctx.shadowColor = '#ffd93d';
-      ctx.shadowBlur = 10;
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, c.r);
-      g.addColorStop(0, '#fff3a0');
-      g.addColorStop(1, '#f59e0b');
-      ctx.fillStyle = g;
+
+      // Outer glow pulse
+      const glow = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2.2);
+      glow.addColorStop(0, `rgba(255,217,61,${0.35 + Math.sin(c.sparkle) * 0.15})`);
+      glow.addColorStop(1, 'rgba(255,180,0,0)');
+      ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(0, 0, c.r, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.font = 'bold 12px Outfit';
+
+      // Spinning coin body
+      ctx.scale(spin, 1);
+      ctx.shadowColor = '#ffd93d';
+      ctx.shadowBlur = 14;
+
+      const body = ctx.createLinearGradient(-r, -r, r, r);
+      body.addColorStop(0, '#fff8c0');
+      body.addColorStop(0.35, '#ffd93d');
+      body.addColorStop(0.7, '#f59e0b');
+      body.addColorStop(1, '#b45309');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rim
+      ctx.strokeStyle = '#fef3c7';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r - 3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner symbol
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = 'bold 14px Outfit';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('$', 0, 1);
+      ctx.fillText('★', 0, 1);
+
       ctx.restore();
+
+      // Orbiting sparkles
+      for (let i = 0; i < 3; i++) {
+        const a = c.sparkle + (i / 3) * Math.PI * 2;
+        const dist = r + 6 + Math.sin(c.sparkle * 2 + i) * 3;
+        ctx.fillStyle = `rgba(255,255,200,${0.5 + Math.sin(c.sparkle + i) * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(c.x + Math.cos(a) * dist, c.y + Math.sin(a) * dist, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     function drawPowerup(p) {
+      p.pulse += 0.08;
+      p.ring += 0.06;
+      const pulse = 1 + Math.sin(p.pulse) * 0.12;
+      const isShield = p.type === 'shield';
+
       ctx.save();
       ctx.translate(p.x, p.y);
-      const pulse = 1 + Math.sin(p.pulse) * 0.15;
       ctx.scale(pulse, pulse);
-      const isShield = p.type === 'shield';
-      ctx.shadowColor = isShield ? '#4ecdc4' : '#ffd93d';
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = isShield ? '#4ecdc4' : '#ffd93d';
+
+      // Outer ring
+      ctx.strokeStyle = isShield
+        ? `rgba(78,205,196,${0.4 + Math.sin(p.pulse) * 0.2})`
+        : `rgba(255,217,61,${0.4 + Math.sin(p.pulse) * 0.2})`;
+      ctx.lineWidth = 2;
       ctx.beginPath();
+      ctx.arc(0, 0, 24 + Math.sin(p.ring) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+
       if (isShield) {
-        ctx.moveTo(0, -14); ctx.lineTo(12, -4); ctx.lineTo(12, 8);
-        ctx.quadraticCurveTo(0, 16, -12, 8); ctx.lineTo(-12, -4); ctx.closePath();
+        // Shield power-up
+        ctx.shadowColor = '#4ecdc4';
+        ctx.shadowBlur = 20;
+
+        const sg = ctx.createLinearGradient(0, -18, 0, 18);
+        sg.addColorStop(0, '#a0f0ff');
+        sg.addColorStop(0.5, '#4ecdc4');
+        sg.addColorStop(1, '#1a8a9a');
+        ctx.fillStyle = sg;
+        ctx.strokeStyle = '#e0ffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -18);
+        ctx.lineTo(16, -6);
+        ctx.lineTo(16, 10);
+        ctx.quadraticCurveTo(0, 20, -16, 10);
+        ctx.lineTo(-16, -6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Cross emblem
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -8); ctx.lineTo(0, 8);
+        ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
+        ctx.stroke();
       } else {
+        // Star power-up
+        ctx.shadowColor = '#ffd93d';
+        ctx.shadowBlur = 22;
+        const stg = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
+        stg.addColorStop(0, '#fff8c0');
+        stg.addColorStop(0.5, '#ffd93d');
+        stg.addColorStop(1, '#f59e0b');
+        ctx.fillStyle = stg;
+        ctx.beginPath();
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-          const r = i % 2 === 0 ? 14 : 6;
+          const r = i % 2 === 0 ? 16 : 7;
           const px = Math.cos(a) * r, py = Math.sin(a) * r;
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
         }
         ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
-      ctx.fill();
+
       ctx.restore();
     }
 
@@ -547,8 +740,8 @@
 
       if (plane.invincible > 0) plane.invincible--;
 
-      // Engine trail (behind plane, above when falling down)
-      plane.trail.push({ x: plane.x + (Math.random() - 0.5) * 4, y: plane.y - 20, life: 1 });
+      // Engine trail below rocket (flame shoots downward)
+      plane.trail.push({ x: plane.x + (Math.random() - 0.5) * 5, y: plane.y + 22, life: 1 });
       if (plane.trail.length > 20) plane.trail.shift();
       plane.trail.forEach(t => t.life -= 0.06);
       plane.trail = plane.trail.filter(t => t.life > 0);
@@ -556,10 +749,10 @@
       obstacles.forEach(o => { o.y += speed; o.rot += o.rotSpeed; });
       obstacles = obstacles.filter(o => o.y < H + 80);
 
-      coins.forEach(c => { c.y += speed * 0.9; c.rot += 0.06; });
+      coins.forEach(c => { c.y += speed * 0.9; c.rot += 0.08; c.sparkle += 0.02; });
       coins = coins.filter(c => c.y < H + 40);
 
-      powerups.forEach(p => { p.y += speed * 0.7; p.rot += 0.04; p.pulse += 0.08; });
+      powerups.forEach(p => { p.y += speed * 0.7; p.rot += 0.04; });
       powerups = powerups.filter(p => p.y < H + 40);
 
       particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.03; });
