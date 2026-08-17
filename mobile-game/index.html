@@ -192,6 +192,12 @@
     function planeY() { return H * PLANE_Y_RATIO; }
     let obstacles = [], coins = [], powerups = [], particles = [], stars = [], texts = [];
 
+    const MAX_PARTICLES = 50;
+    const MAX_TRAIL = 10;
+    const MAX_OBSTACLES = 14;
+    const MAX_COINS = 8;
+    let bgGrad = null;
+
     // --- Audio (Web Audio API, sin archivos externos) ---
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -219,19 +225,23 @@
 
     // --- Setup ---
     function resize() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       W = window.innerWidth; H = window.innerHeight;
       canvas.width = W * dpr; canvas.height = H * dpr;
       canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      bgGrad.addColorStop(0, '#070b1a');
+      bgGrad.addColorStop(0.4, '#12102e');
+      bgGrad.addColorStop(1, '#1e0f3a');
       plane.y = planeY();
-      if (state === 'menu') initStars();
+      initStars();
     }
 
     function initStars() {
-      stars = Array.from({ length: 100 }, () => ({
+      stars = Array.from({ length: 45 }, () => ({
         x: Math.random() * W, y: Math.random() * H,
-        r: Math.random() * 1.8 + 0.3, spd: 0.2 + Math.random() * 0.8, twinkle: Math.random() * Math.PI * 2
+        r: Math.random() * 1.5 + 0.4, spd: 0.2 + Math.random() * 0.6
       }));
     }
 
@@ -261,6 +271,7 @@
     }
 
     function spawnObstacle() {
+      if (obstacles.length >= MAX_OBSTACLES) return;
       const size = 26 + Math.random() * 24;
       const types = ['asteroid', 'asteroid', 'spike', 'meteor'];
       const type = types[Math.floor(Math.random() * types.length)];
@@ -277,6 +288,7 @@
     }
 
     function spawnCoin() {
+      if (coins.length >= MAX_COINS) return;
       coins.push({
         x: 30 + Math.random() * (W - 60), y: -20,
         r: 15, rot: 0, sparkle: Math.random() * Math.PI * 2, collected: false
@@ -296,11 +308,13 @@
       texts.push({ x, y, text, color, life: 1, vy: -1.5 });
     }
 
-    function spawnParticles(x, y, color, n = 10, speed = 4) {
+    function spawnParticles(x, y, color, n = 8, speed = 4) {
+      const room = MAX_PARTICLES - particles.length;
+      n = Math.min(n, room);
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
         const s = 1 + Math.random() * speed;
-        particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, color, size: 2 + Math.random() * 4 });
+        particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, color, size: 2 + Math.random() * 3 });
       }
     }
 
@@ -334,119 +348,74 @@
           sfxPowerup();
         }
         coinBarFill.style.width = '0%';
-        spawnParticles(plane.x, plane.y, '#ffd93d', 20, 5);
+        spawnParticles(plane.x, plane.y, '#ffd93d', 12, 4);
       }
       c.collected = true;
     }
 
     // --- Drawing ---
     function drawBackground() {
-      const t = frame * 0.001;
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, '#070b1a');
-      grad.addColorStop(0.4, '#12102e');
-      grad.addColorStop(1, '#1e0f3a');
-      ctx.fillStyle = grad;
+      ctx.fillStyle = bgGrad || '#070b1a';
       ctx.fillRect(0, 0, W, H);
 
-      // Nebula glow
-      const ng = ctx.createRadialGradient(W * 0.7, H * 0.2, 0, W * 0.7, H * 0.2, W * 0.5);
-      ng.addColorStop(0, `rgba(120,60,200,${0.06 + Math.sin(t) * 0.02})`);
-      ng.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = ng;
-      ctx.fillRect(0, 0, W, H);
-
-      stars.forEach(s => {
-        s.y += s.spd + speed * 0.12;
-        s.twinkle += 0.05;
+      ctx.fillStyle = '#fff';
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        s.y += s.spd + speed * 0.1;
         if (s.y > H) { s.y = -5; s.x = Math.random() * W; }
-        ctx.globalAlpha = 0.3 + Math.sin(s.twinkle) * 0.3 + 0.2;
-        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = 0.45;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
-      });
+      }
       ctx.globalAlpha = 1;
     }
 
     function drawShieldBubble() {
       const t = frame * 0.08;
-      const r = 36;
-
-      // Outer glow
-      const glow = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 1.4);
-      glow.addColorStop(0, 'rgba(78,205,196,0.15)');
-      glow.addColorStop(1, 'rgba(78,205,196,0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 1.4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Hex energy field
-      ctx.strokeStyle = `rgba(100,220,255,${0.35 + Math.sin(t) * 0.15})`;
+      const r = 34;
+      ctx.strokeStyle = `rgba(100,220,255,${0.5 + Math.sin(t) * 0.2})`;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = t + (i / 6) * Math.PI * 2;
-        const px = Math.cos(a) * r, py = Math.sin(a) * r;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.stroke();
-
-      // Inner bubble
-      const bubble = ctx.createRadialGradient(0, -r * 0.3, 0, 0, 0, r);
-      bubble.addColorStop(0, 'rgba(180,255,255,0.25)');
-      bubble.addColorStop(0.6, 'rgba(78,205,196,0.12)');
-      bubble.addColorStop(1, 'rgba(45,120,200,0.05)');
-      ctx.fillStyle = bubble;
-      ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(78,205,196,0.12)';
+      ctx.beginPath();
+      ctx.arc(0, 0, r - 2, 0, Math.PI * 2);
       ctx.fill();
-
-      // Rotating arcs
-      for (let i = 0; i < 3; i++) {
-        ctx.strokeStyle = `rgba(150,240,255,${0.4 - i * 0.1})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, r - 4 - i * 3, t * (1 + i * 0.3), t * (1 + i * 0.3) + Math.PI * 0.8);
-        ctx.stroke();
-      }
+      ctx.strokeStyle = `rgba(150,240,255,${0.35})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, r - 8, t, t + Math.PI * 1.2);
+      ctx.stroke();
     }
 
     function drawPlane(x, y, tilt, invincible) {
-      // Engine trail below (rocket points up)
-      plane.trail.forEach(t => {
-        ctx.globalAlpha = t.life * 0.5;
-        const tg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, 6 * t.life);
-        tg.addColorStop(0, '#fff');
-        tg.addColorStop(0.4, '#ff8c42');
-        tg.addColorStop(1, 'rgba(255,80,30,0)');
-        ctx.fillStyle = tg;
+      for (let i = 0; i < plane.trail.length; i++) {
+        const t = plane.trail[i];
+        ctx.globalAlpha = t.life * 0.45;
+        ctx.fillStyle = '#ff8c42';
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 6 * t.life, 0, Math.PI * 2);
+        ctx.arc(t.x, t.y, 4 * t.life, 0, Math.PI * 2);
         ctx.fill();
-      });
+      }
       ctx.globalAlpha = 1;
 
       ctx.save();
       ctx.translate(x, y);
-      // Nose up; bank left/right when moving
       ctx.rotate(-Math.PI / 2 + tilt);
 
       if (invincible > 0) {
-        ctx.shadowColor = '#ffd93d';
-        ctx.shadowBlur = 24 + Math.sin(frame * 0.3) * 10;
+        ctx.strokeStyle = 'rgba(255,217,61,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 32, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       if (plane.shield) drawShieldBubble();
 
-      // Fuselage
-      const bodyGrad = ctx.createLinearGradient(-20, 0, 25, 0);
-      bodyGrad.addColorStop(0, '#b8c4d8');
-      bodyGrad.addColorStop(0.5, '#eef2ff');
-      bodyGrad.addColorStop(1, '#ffffff');
-      ctx.fillStyle = bodyGrad;
+      ctx.fillStyle = '#e8ecf4';
       ctx.beginPath();
       ctx.moveTo(24, 0);
       ctx.bezierCurveTo(10, -12, -10, -10, -18, -4);
@@ -454,35 +423,21 @@
       ctx.bezierCurveTo(-10, 10, 10, 12, 24, 0);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
 
-      // Wings
       ctx.fillStyle = '#ff5e5e';
       ctx.beginPath();
       ctx.moveTo(-4, -8); ctx.lineTo(-18, -22); ctx.lineTo(-10, -6); ctx.closePath(); ctx.fill();
       ctx.beginPath();
       ctx.moveTo(-4, 8); ctx.lineTo(-18, 22); ctx.lineTo(-10, 6); ctx.closePath(); ctx.fill();
 
-      // Cockpit
-      const cg = ctx.createRadialGradient(10, -2, 0, 8, 0, 8);
-      cg.addColorStop(0, '#a0fff8');
-      cg.addColorStop(1, '#2dd4bf');
-      ctx.fillStyle = cg;
+      ctx.fillStyle = '#4ecdc4';
       ctx.beginPath();
       ctx.ellipse(8, 0, 8, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Engine flame (below rocket, pointing down = back of upward rocket)
       plane.enginePhase += 0.4;
-      const flameLen = 16 + Math.sin(plane.enginePhase) * 8;
-      const fg = ctx.createLinearGradient(-22, 0, -22 - flameLen, 0);
-      fg.addColorStop(0, '#fff');
-      fg.addColorStop(0.2, '#ffaa44');
-      fg.addColorStop(0.6, '#ff5533');
-      fg.addColorStop(1, 'rgba(255,50,50,0)');
-      ctx.fillStyle = fg;
+      const flameLen = 14 + Math.sin(plane.enginePhase) * 6;
+      ctx.fillStyle = '#ff7733';
       ctx.beginPath();
       ctx.moveTo(-20, -4);
       ctx.lineTo(-20 - flameLen, 0);
@@ -498,17 +453,9 @@
       ctx.translate(o.x, o.y);
       ctx.rotate(o.rot);
 
-      // Danger glow
-      ctx.shadowColor = o.type === 'meteor' ? '#ff4400' : '#ff2244';
-      ctx.shadowBlur = o.type === 'meteor' ? 18 : 10;
-
       if (o.type === 'spike') {
         const s = o.size * 0.55;
-        const spikeGrad = ctx.createLinearGradient(0, -s, 0, s);
-        spikeGrad.addColorStop(0, '#ff4466');
-        spikeGrad.addColorStop(0.5, '#cc1144');
-        spikeGrad.addColorStop(1, '#660022');
-        ctx.fillStyle = spikeGrad;
+        ctx.fillStyle = '#cc1144';
         for (let i = 0; i < 4; i++) {
           ctx.save();
           ctx.rotate((i / 4) * Math.PI * 2);
@@ -525,18 +472,13 @@
         ctx.arc(0, 0, s * 0.3, 0, Math.PI * 2);
         ctx.fill();
       } else if (o.type === 'meteor') {
-        // Fire tail
-        const tailGrad = ctx.createLinearGradient(0, o.size * 0.3, 0, o.size * 1.5);
-        tailGrad.addColorStop(0, 'rgba(255,150,50,0.8)');
-        tailGrad.addColorStop(1, 'rgba(255,50,0,0)');
-        ctx.fillStyle = tailGrad;
+        ctx.fillStyle = 'rgba(255,120,40,0.7)';
         ctx.beginPath();
         ctx.moveTo(-o.size * 0.2, o.size * 0.3);
-        ctx.lineTo(0, o.size * 1.4);
+        ctx.lineTo(0, o.size * 1.2);
         ctx.lineTo(o.size * 0.2, o.size * 0.3);
         ctx.closePath();
         ctx.fill();
-
         ctx.fillStyle = '#3d2817';
         ctx.strokeStyle = '#ff7733';
         ctx.lineWidth = 2;
@@ -544,12 +486,7 @@
         o.verts.forEach((v, i) => i === 0 ? ctx.moveTo(v[0], v[1]) : ctx.lineTo(v[0], v[1]));
         ctx.closePath();
         ctx.fill(); ctx.stroke();
-        ctx.fillStyle = 'rgba(255,180,60,0.7)';
-        ctx.beginPath();
-        ctx.arc(-o.size * 0.15, -o.size * 0.1, o.size * 0.18, 0, Math.PI * 2);
-        ctx.fill();
       } else {
-        // Asteroid with craters
         ctx.fillStyle = '#4a5568';
         ctx.strokeStyle = '#718096';
         ctx.lineWidth = 2;
@@ -564,109 +501,53 @@
           ctx.fill();
         });
       }
-
-      // Warning ring
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = `rgba(255,60,80,${0.25 + Math.sin(frame * 0.15 + o.x) * 0.1})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, o.size * 0.65, 0, Math.PI * 2);
-      ctx.stroke();
-
       ctx.restore();
     }
 
     function drawCoin(c) {
-      c.sparkle += 0.05;
       const spin = Math.abs(Math.cos(c.rot));
       const r = c.r;
 
       ctx.save();
       ctx.translate(c.x, c.y);
-
-      // Outer glow pulse
-      const glow = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2.2);
-      glow.addColorStop(0, `rgba(255,217,61,${0.35 + Math.sin(c.sparkle) * 0.15})`);
-      glow.addColorStop(1, 'rgba(255,180,0,0)');
-      ctx.fillStyle = glow;
+      ctx.fillStyle = 'rgba(255,217,61,0.25)';
       ctx.beginPath();
-      ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 1.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Spinning coin body
       ctx.scale(spin, 1);
-      ctx.shadowColor = '#ffd93d';
-      ctx.shadowBlur = 14;
-
-      const body = ctx.createLinearGradient(-r, -r, r, r);
-      body.addColorStop(0, '#fff8c0');
-      body.addColorStop(0.35, '#ffd93d');
-      body.addColorStop(0.7, '#f59e0b');
-      body.addColorStop(1, '#b45309');
-      ctx.fillStyle = body;
+      ctx.fillStyle = '#ffd93d';
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
-
-      // Rim
-      ctx.strokeStyle = '#fef3c7';
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.strokeStyle = '#92400e';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(0, 0, r - 3, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Inner symbol
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.font = 'bold 14px Outfit';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 13px Outfit';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('★', 0, 1);
-
       ctx.restore();
-
-      // Orbiting sparkles
-      for (let i = 0; i < 3; i++) {
-        const a = c.sparkle + (i / 3) * Math.PI * 2;
-        const dist = r + 6 + Math.sin(c.sparkle * 2 + i) * 3;
-        ctx.fillStyle = `rgba(255,255,200,${0.5 + Math.sin(c.sparkle + i) * 0.3})`;
-        ctx.beginPath();
-        ctx.arc(c.x + Math.cos(a) * dist, c.y + Math.sin(a) * dist, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
     }
 
     function drawPowerup(p) {
       p.pulse += 0.08;
-      p.ring += 0.06;
-      const pulse = 1 + Math.sin(p.pulse) * 0.12;
+      const pulse = 1 + Math.sin(p.pulse) * 0.1;
       const isShield = p.type === 'shield';
 
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.scale(pulse, pulse);
 
-      // Outer ring
-      ctx.strokeStyle = isShield
-        ? `rgba(78,205,196,${0.4 + Math.sin(p.pulse) * 0.2})`
-        : `rgba(255,217,61,${0.4 + Math.sin(p.pulse) * 0.2})`;
+      ctx.strokeStyle = isShield ? 'rgba(78,205,196,0.5)' : 'rgba(255,217,61,0.5)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, 24 + Math.sin(p.ring) * 3, 0, Math.PI * 2);
+      ctx.arc(0, 0, 22, 0, Math.PI * 2);
       ctx.stroke();
 
       if (isShield) {
-        // Shield power-up
-        ctx.shadowColor = '#4ecdc4';
-        ctx.shadowBlur = 20;
-
-        const sg = ctx.createLinearGradient(0, -18, 0, 18);
-        sg.addColorStop(0, '#a0f0ff');
-        sg.addColorStop(0.5, '#4ecdc4');
-        sg.addColorStop(1, '#1a8a9a');
-        ctx.fillStyle = sg;
+        ctx.fillStyle = '#4ecdc4';
         ctx.strokeStyle = '#e0ffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -678,37 +559,24 @@
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-
-        // Cross emblem
         ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, -8); ctx.lineTo(0, 8);
         ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
         ctx.stroke();
       } else {
-        // Star power-up
-        ctx.shadowColor = '#ffd93d';
-        ctx.shadowBlur = 22;
-        const stg = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
-        stg.addColorStop(0, '#fff8c0');
-        stg.addColorStop(0.5, '#ffd93d');
-        stg.addColorStop(1, '#f59e0b');
-        ctx.fillStyle = stg;
+        ctx.fillStyle = '#ffd93d';
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-          const r = i % 2 === 0 ? 16 : 7;
-          const px = Math.cos(a) * r, py = Math.sin(a) * r;
+          const rad = i % 2 === 0 ? 16 : 7;
+          const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
         }
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
       }
-
       ctx.restore();
     }
 
@@ -719,7 +587,7 @@
       // Spawn timers scale with level
       const obsInterval = Math.max(28, 55 - level * 3);
       if (frame % obsInterval === 0) spawnObstacle();
-      if (frame % 40 === 0) spawnCoin();
+      if (frame % 45 === 0) spawnCoin();
       if (frame % 350 === 0) spawnPowerup();
 
       // Level up every 500 points
@@ -740,16 +608,18 @@
 
       if (plane.invincible > 0) plane.invincible--;
 
-      // Engine trail below rocket (flame shoots downward)
-      plane.trail.push({ x: plane.x + (Math.random() - 0.5) * 5, y: plane.y + 22, life: 1 });
-      if (plane.trail.length > 20) plane.trail.shift();
+      // Engine trail below rocket (every other frame)
+      if (frame % 2 === 0) {
+        plane.trail.push({ x: plane.x + (Math.random() - 0.5) * 4, y: plane.y + 22, life: 1 });
+        if (plane.trail.length > MAX_TRAIL) plane.trail.shift();
+      }
       plane.trail.forEach(t => t.life -= 0.06);
       plane.trail = plane.trail.filter(t => t.life > 0);
 
       obstacles.forEach(o => { o.y += speed; o.rot += o.rotSpeed; });
       obstacles = obstacles.filter(o => o.y < H + 80);
 
-      coins.forEach(c => { c.y += speed * 0.9; c.rot += 0.08; c.sparkle += 0.02; });
+      coins.forEach(c => { c.y += speed * 0.9; c.rot += 0.07; });
       coins = coins.filter(c => c.y < H + 40);
 
       powerups.forEach(p => { p.y += speed * 0.7; p.rot += 0.04; });
