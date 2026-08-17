@@ -20,10 +20,23 @@
       display: flex; justify-content: space-between; align-items: flex-start;
       pointer-events: none; z-index: 10;
     }
-    #scoreBox { display: flex; flex-direction: column; gap: 2px; }
+    #scoreBox { display: flex; flex-direction: column; gap: 4px; }
+    #scoreLabel { color: rgba(255,255,255,.4); font-size: 11px; font-weight: 700; letter-spacing: 1px; }
     #score {
       color: #fff; font-size: 32px; font-weight: 900; line-height: 1;
       text-shadow: 0 0 20px rgba(255,217,61,.4);
+    }
+    #coinsHud {
+      display: flex; align-items: center; gap: 6px;
+      color: #ffd93d; font-size: 15px; font-weight: 700;
+    }
+    #coinBar {
+      width: 80px; height: 5px; background: rgba(255,255,255,.12);
+      border-radius: 3px; overflow: hidden;
+    }
+    #coinBarFill {
+      height: 100%; width: 0%; background: linear-gradient(90deg, #f59e0b, #ffd93d);
+      border-radius: 3px; transition: width .2s;
     }
     #combo {
       color: #ffd93d; font-size: 13px; font-weight: 700; opacity: 0;
@@ -110,7 +123,12 @@
   <canvas id="game"></canvas>
   <div id="ui">
     <div id="scoreBox">
+      <div id="scoreLabel">PUNTOS</div>
       <div id="score">0</div>
+      <div id="coinsHud">
+        <span>🪙 <span id="coinsCount">0</span></span>
+        <div id="coinBar"><div id="coinBarFill"></div></div>
+      </div>
       <div id="combo"></div>
     </div>
     <div id="hudRight">
@@ -127,7 +145,7 @@
     <div class="subtitle">Esquiva · Colecciona · Sobrevive</div>
     <div class="instructions" id="instructions">
       <div><span>👆</span> Arrastra el dedo para mover el avión</div>
-      <div><span>🪙</span> Recoge monedas para más puntos</div>
+      <div><span>🪙</span> Monedas = puntos extra. Cada 10 = escudo o +200 pts</div>
       <div><span>🛡️</span> Escudo azul = 1 golpe extra</div>
       <div><span>⭐</span> Estrella = invencible 3 segundos</div>
     </div>
@@ -139,6 +157,8 @@
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
+    const coinsCountEl = document.getElementById('coinsCount');
+    const coinBarFill = document.getElementById('coinBarFill');
     const comboEl = document.getElementById('combo');
     const levelEl = document.getElementById('level');
     const bestEl = document.getElementById('best');
@@ -157,6 +177,7 @@
     let score = 0, best = parseInt(localStorage.getItem('aeroFallBest') || '0', 10);
     let frame = 0, speed = 2.8, level = 1, shake = 0, flash = 0;
     let combo = 0, comboTimer = 0, muted = false;
+    let coinsCollected = 0;
     let audioCtx = null;
 
     bestEl.textContent = 'Mejor: ' + best;
@@ -216,8 +237,10 @@
 
     function reset() {
       score = 0; frame = 0; speed = 2.8; level = 1; shake = 0; flash = 0;
-      combo = 0; comboTimer = 0;
+      combo = 0; comboTimer = 0; coinsCollected = 0;
       scoreEl.textContent = '0';
+      coinsCountEl.textContent = '0';
+      coinBarFill.style.width = '0%';
       levelEl.textContent = 'NIVEL 1';
       comboEl.classList.remove('show');
       plane.x = W / 2; plane.targetX = W / 2; plane.y = planeY();
@@ -276,6 +299,41 @@
         const s = 1 + Math.random() * speed;
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, color, size: 2 + Math.random() * 4 });
       }
+    }
+
+    function onCoinCollected(c) {
+      combo++; comboTimer = 120;
+      coinsCollected++;
+      const pts = 10 * Math.min(combo, 5);
+      score += pts;
+      scoreEl.textContent = score;
+      coinsCountEl.textContent = coinsCollected;
+      coinBarFill.style.width = ((coinsCollected % 10) / 10 * 100) + '%';
+
+      comboEl.textContent = 'Combo x' + combo + ' (+' + pts + ' pts)';
+      comboEl.classList.add('show');
+      addText(c.x, c.y - 10, '+' + pts + ' pts', '#ffd93d');
+      spawnParticles(c.x, c.y, '#ffd93d', 8, 3);
+      sfxCoin();
+
+      if (coinsCollected % 10 === 0) {
+        if (!plane.shield) {
+          plane.shield = true;
+          shieldBar.classList.add('show');
+          shieldFill.style.width = '100%';
+          addText(plane.x, plane.y - 50, '¡10 MONEDAS = ESCUDO!', '#4ecdc4');
+          sfxPowerup();
+        } else {
+          score += 200;
+          scoreEl.textContent = score;
+          addText(plane.x, plane.y - 50, '¡10 MONEDAS = +200!', '#ffd93d');
+          sfxCoin();
+          sfxPowerup();
+        }
+        coinBarFill.style.width = '0%';
+        spawnParticles(plane.x, plane.y, '#ffd93d', 20, 5);
+      }
+      c.collected = true;
     }
 
     // --- Drawing ---
@@ -517,18 +575,7 @@
       // Collect coins
       coins.forEach(c => {
         const dx = px - c.x, dy = py - c.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 28) {
-          combo++; comboTimer = 120;
-          const pts = 10 * Math.min(combo, 5);
-          score += pts;
-          scoreEl.textContent = score;
-          comboEl.textContent = 'x' + combo + ' combo!';
-          comboEl.classList.add('show');
-          addText(c.x, c.y - 10, '+' + pts);
-          spawnParticles(c.x, c.y, '#ffd93d', 6, 3);
-          sfxCoin();
-          c.collected = true;
-        }
+        if (Math.sqrt(dx * dx + dy * dy) < 28) onCoinCollected(c);
       });
       coins = coins.filter(c => !c.collected);
 
@@ -635,7 +682,8 @@
       overlayText.style.display = 'block';
       overlayText.innerHTML =
         '<div class="final-score">' + score + '</div>' +
-        '<div style="color:rgba(255,255,255,.5);margin-bottom:8px">puntos · Nivel ' + level + '</div>' +
+        '<div style="color:rgba(255,255,255,.5);margin-bottom:4px">puntos · Nivel ' + level + '</div>' +
+        '<div style="color:#ffd93d;font-size:15px;margin-bottom:8px">🪙 ' + coinsCollected + ' monedas recolectadas</div>' +
         (isNew ? '<div class="new-record">🏆 ¡Nuevo récord!</div>' : '');
       overlay.querySelector('h1').textContent = '¡Game Over!';
       overlay.querySelector('.subtitle').textContent = '';
