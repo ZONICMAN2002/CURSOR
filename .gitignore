@@ -1,0 +1,11 @@
+# Android / Gradle
+android-puzzle/.gradle/
+android-puzzle/build/
+android-puzzle/app/build/
+android-puzzle/local.properties
+*.apk
+*.aab
+
+# Python
+__pycache__/
+*.pyc

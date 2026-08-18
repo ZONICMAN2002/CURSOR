@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Horizontes Puzzle</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%; background: #0f172a; color: #f8fafc;
+      font-family: 'Outfit', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+    .screen { min-height: 100%; padding: 16px; display: flex; flex-direction: column; }
+    .screen.hidden { display: none; }
+    header { text-align: center; margin-bottom: 16px; }
+    header h1 {
+      font-size: 26px; font-weight: 800; color: #ffd54f;
+      letter-spacing: -0.5px;
+    }
+    header p { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    .levels {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      flex: 1; margin-bottom: 16px;
+    }
+    .level-card {
+      background: #1e293b; border-radius: 12px; overflow: hidden;
+      border: 2px solid transparent; cursor: pointer;
+      transition: transform .15s, border-color .15s;
+    }
+    .level-card.selected { border-color: #1976d2; transform: scale(1.02); }
+    .level-card img { width: 100%; height: 90px; object-fit: cover; display: block; }
+    .level-card .info { padding: 8px; }
+    .level-card .title { font-size: 13px; font-weight: 700; }
+    .level-card .meta { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+    label { font-size: 14px; font-weight: 700; margin-bottom: 8px; display: block; }
+    select {
+      width: 100%; padding: 12px; border-radius: 8px;
+      border: 1px solid #1976d2; background: #1e293b; color: #f8fafc;
+      font-family: inherit; font-size: 15px; margin-bottom: 12px;
+    }
+    .btn {
+      width: 100%; padding: 16px; border: none; border-radius: 28px;
+      background: linear-gradient(135deg, #1976d2, #0d47a1);
+      color: #fff; font-family: inherit; font-size: 16px; font-weight: 800;
+      cursor: pointer;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-outline {
+      background: transparent; border: 2px solid #1976d2; color: #f8fafc;
+    }
+    .game-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    }
+    .back-btn {
+      background: #1e293b; border: none; color: #f8fafc;
+      width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer;
+    }
+    .game-title { font-weight: 700; font-size: 16px; flex: 1; }
+    .stats { color: #94a3b8; font-size: 13px; margin-bottom: 8px; }
+    #puzzleWrap {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      touch-action: none; margin-bottom: 12px;
+    }
+    #puzzleCanvas { max-width: 100%; border-radius: 8px; }
+    .btn-row { display: flex; gap: 8px; }
+    .btn-row .btn { flex: 1; }
+    #winOverlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,.9);
+      display: none; align-items: center; justify-content: center; z-index: 50;
+      padding: 24px;
+    }
+    #winOverlay.show { display: flex; }
+    .win-box {
+      background: #1e293b; border-radius: 16px; padding: 28px;
+      text-align: center; max-width: 320px; width: 100%;
+    }
+    .win-box h2 { color: #22c55e; font-size: 22px; margin-bottom: 12px; }
+    .win-box p { color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+    .nav-links { text-align: center; margin-top: 12px; }
+    .nav-links a { color: #94a3b8; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="menuScreen" class="screen">
+    <header>
+      <h1>Horizontes Puzzle</h1>
+      <p>Financiera Horizontes · Creciendo Juntos</p>
+    </header>
+    <p style="font-weight:700;margin-bottom:8px">Selecciona un nivel</p>
+    <div class="levels" id="levelsGrid"></div>
+    <label for="difficulty">Dificultad</label>
+    <select id="difficulty">
+      <option value="3">Fácil · 3×3</option>
+      <option value="4">Medio · 4×4</option>
+      <option value="5">Difícil · 5×5</option>
+      <option value="6">Experto · 6×6</option>
+    </select>
+    <button class="btn" id="startBtn">Comenzar</button>
+    <div class="nav-links"><a href="index.html">← Otros juegos</a></div>
+  </div>
+
+  <div id="gameScreen" class="screen hidden">
+    <div class="game-header">
+      <button class="back-btn" id="backBtn">←</button>
+      <div class="game-title" id="gameTitle"></div>
+    </div>
+    <div class="stats" id="statsText">Movimientos: 0 · Tiempo: 0s</div>
+    <p style="font-size:12px;color:#64748b;margin-bottom:8px">Arrastra las piezas a su lugar correcto</p>
+    <div id="puzzleWrap"><canvas id="puzzleCanvas"></canvas></div>
+    <div class="btn-row">
+      <button class="btn btn-outline" id="previewBtn">Vista previa</button>
+      <button class="btn" id="shuffleBtn">Mezclar</button>
+    </div>
+  </div>
+
+  <div id="winOverlay">
+    <div class="win-box">
+      <h2>¡Rompecabezas completo!</h2>
+      <p id="winText"></p>
+      <button class="btn" id="playAgainBtn">Jugar de nuevo</button>
+      <button class="btn btn-outline" style="margin-top:8px" id="menuBtn">Volver a niveles</button>
+    </div>
+  </div>
+
+  <script>
+    const LEVELS = [
+      { id: 1, img: 'puzzle-assets/puzzle_photo_1.jpg', title: 'Oficina · Agosto' },
+      { id: 2, img: 'puzzle-assets/puzzle_photo_2.jpg', title: 'Almuerzo en restaurante' },
+      { id: 3, img: 'puzzle-assets/puzzle_photo_3.jpg', title: 'Limpieza · Julio' },
+      { id: 4, img: 'puzzle-assets/puzzle_photo_4.jpg', title: 'Equipo en oficina' },
+      { id: 5, img: 'puzzle-assets/puzzle_photo_5.jpg', title: 'Sucursal Masisea' }
+    ];
+
+    let selectedLevel = 1, gridSize = 3, board = [], moves = 0, startTime = 0, timerId = null;
+    let fullImage = null, pieceImages = [], dragging = -1, dragX = 0, dragY = 0, showPreview = false;
+    let cellSize = 0, boardLeft = 0, boardTop = 0;
+
+    const canvas = document.getElementById('puzzleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function shuffleBoard() {
+      const n = gridSize * gridSize;
+      board = Array.from({ length: n }, (_, i) => i);
+      let lastFrom = -1, lastTo = -1;
+      for (let k = 0; k < n * 8; k++) {
+        const options = [];
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+          if (i !== j && i !== lastFrom && j !== lastTo) options.push([i, j]);
+        }
+        const [a, b] = options[Math.floor(Math.random() * options.length)];
+        [board[a], board[b]] = [board[b], board[a]];
+        lastFrom = a; lastTo = b;
+      }
+      if (board.every((v, i) => v === i)) shuffleBoard();
+      moves = 0;
+    }
+
+    function isSolved() { return board.every((v, i) => v === i); }
+
+    function formatTime(ms) {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s}s`;
+    }
+
+    function updateStats() {
+      const elapsed = Date.now() - startTime;
+      document.getElementById('statsText').textContent =
+        `Movimientos: ${moves} · Tiempo: ${formatTime(elapsed)}`;
+    }
+
+    function layoutCanvas() {
+      const wrap = document.getElementById('puzzleWrap');
+      const side = Math.min(wrap.clientWidth, wrap.clientHeight || 400, 480);
+      canvas.width = side;
+      canvas.height = side;
+      cellSize = side / gridSize;
+      boardLeft = 0;
+      boardTop = 0;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (showPreview && fullImage) {
+        ctx.drawImage(fullImage, 0, 0, canvas.width, canvas.height);
+        return;
+      }
+      for (let cell = 0; cell < board.length; cell++) {
+        if (cell === dragging) continue;
+        drawCell(cell);
+      }
+      if (dragging >= 0 && pieceImages[board[dragging]]) {
+        const x = dragX - cellSize / 2, y = dragY - cellSize / 2;
+        ctx.drawImage(pieceImages[board[dragging]], x, y, cellSize, cellSize);
+        ctx.strokeStyle = '#1976d2';
+        ctx.strokeRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    function drawCell(cellIndex) {
+      const row = Math.floor(cellIndex / gridSize), col = cellIndex % gridSize;
+      const x = boardLeft + col * cellSize, y = boardTop + row * cellSize;
+      const pieceId = board[cellIndex];
+      if (pieceImages[pieceId]) ctx.drawImage(pieceImages[pieceId], x, y, cellSize, cellSize);
+      if (pieceId === cellIndex) {
+        ctx.fillStyle = 'rgba(34,197,94,0.25)';
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+      ctx.strokeStyle = '#1976d2';
+      ctx.strokeRect(x, y, cellSize, cellSize);
+    }
+
+    function cellAt(px, py) {
+      const col = Math.floor((px - boardLeft) / cellSize);
+      const row = Math.floor((py - boardTop) / cellSize);
+      if (col < 0 || col >= gridSize || row < 0 || row >= gridSize) return -1;
+      return row * gridSize + col;
+    }
+
+    function sliceImage(img) {
+      pieceImages = [];
+      const w = img.width, h = img.height;
+      const cw = Math.floor(w / gridSize), ch = Math.floor(h / gridSize);
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          const cvs = document.createElement('canvas');
+          cvs.width = cw; cvs.height = ch;
+          cvs.getContext('2d').drawImage(img, c * cw, r * ch, cw, ch, 0, 0, cw, ch);
+          pieceImages.push(cvs);
+        }
+      }
+    }
+
+    function startGame() {
+      const level = LEVELS.find(l => l.id === selectedLevel);
+      document.getElementById('gameTitle').textContent = level.title;
+      document.getElementById('menuScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('hidden');
+      document.getElementById('previewBtn').textContent = 'Vista previa';
+      showPreview = false;
+
+      const img = new Image();
+      img.onload = () => {
+        fullImage = img;
+        sliceImage(img);
+        shuffleBoard();
+        layoutCanvas();
+        startTime = Date.now();
+        clearInterval(timerId);
+        timerId = setInterval(updateStats, 500);
+        updateStats();
+        draw();
+      };
+      img.src = level.img;
+    }
+
+    function onWin() {
+      clearInterval(timerId);
+      const elapsed = Date.now() - startTime;
+      document.getElementById('winText').textContent =
+        `Movimientos: ${moves}\nTiempo: ${formatTime(elapsed)}`;
+      document.getElementById('winOverlay').classList.add('show');
+    }
+
+    // Build level grid
+    const grid = document.getElementById('levelsGrid');
+    LEVELS.forEach(l => {
+      const card = document.createElement('div');
+      card.className = 'level-card' + (l.id === selectedLevel ? ' selected' : '');
+      card.innerHTML = `<img src="${l.img}" alt=""><div class="info"><div class="title">${l.title}</div></div>`;
+      card.onclick = () => {
+        selectedLevel = l.id;
+        document.querySelectorAll('.level-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      };
+      grid.appendChild(card);
+    });
+
+    document.getElementById('startBtn').onclick = () => {
+      gridSize = parseInt(document.getElementById('difficulty').value, 10);
+      startGame();
+    };
+    document.getElementById('backBtn').onclick = () => {
+      clearInterval(timerId);
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('menuScreen').classList.remove('hidden');
+    };
+    document.getElementById('shuffleBtn').onclick = () => {
+      shuffleBoard();
+      startTime = Date.now();
+      updateStats();
+      draw();
+    };
+    document.getElementById('previewBtn').onclick = () => {
+      const btn = document.getElementById('previewBtn');
+      showPreview = btn.textContent === 'Vista previa';
+      btn.textContent = showPreview ? 'Volver al rompecabezas' : 'Vista previa';
+      draw();
+    };
+    document.getElementById('playAgainBtn').onclick = () => {
+      document.getElementById('winOverlay').classList.remove('show');
+      shuffleBoard();
+      startTime = Date.now();
+      timerId = setInterval(updateStats, 500);
+      updateStats();
+      draw();
+    };
+    document.getElementById('menuBtn').onclick = () => {
+      document.getElementById('winOverlay').classList.remove('show');
+      document.getElementById('backBtn').click();
+    };
+
+    function pointerPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      return { x, y };
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const { x, y } = pointerPos(e);
+      const cell = cellAt(x, y);
+      if (cell >= 0) {
+        dragging = cell;
+        dragX = x; dragY = y;
+        canvas.setPointerCapture(e.pointerId);
+        draw();
+      }
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (dragging < 0) return;
+      const p = pointerPos(e);
+      dragX = p.x; dragY = p.y;
+      draw();
+    });
+    canvas.addEventListener('pointerup', e => {
+      if (dragging < 0) return;
+      const { x, y } = pointerPos(e);
+      const target = cellAt(x, y);
+      if (target >= 0 && target !== dragging) {
+        [board[dragging], board[target]] = [board[target], board[dragging]];
+        moves++;
+        updateStats();
+        if (isSolved()) onWin();
+      }
+      dragging = -1;
+      draw();
+    });
+  </script>
+</body>
+</html>

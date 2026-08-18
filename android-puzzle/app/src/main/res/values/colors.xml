@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="horizontes_blue">#0D47A1</color>
+    <color name="horizontes_blue_light">#1976D2</color>
+    <color name="horizontes_gold">#FFD54F</color>
+    <color name="horizontes_red">#B71C1C</color>
+    <color name="surface_dark">#0F172A</color>
+    <color name="surface_card">#1E293B</color>
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="success_green">#22C55E</color>
+</resources>

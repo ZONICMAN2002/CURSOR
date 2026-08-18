@@ -1,5 +1,26 @@
 # CURSOR
 
+## Horizontes Puzzle — Rompecabezas Android
+
+Juego de rompecabezas con 5 fotos del equipo Financiera Horizontes y dificultades 3×3 hasta 6×6.
+
+### Jugar en el navegador (teléfono)
+
+1. Activa **GitHub Pages** con fuente **GitHub Actions** (Settings → Pages).
+2. Abre: **https://zonicman2002.github.io/CURSOR/puzzle.html**
+
+### Instalar APK en Android
+
+Ver `android-puzzle/README.md` — compila con Android Studio o `./gradlew assembleDebug`.
+
+### Reemplazar con tus fotos
+
+```bash
+python3 scripts/replace_puzzle_photos.py foto1.jpg foto2.jpg foto3.jpg foto4.jpg foto5.jpg
+```
+
+---
+
 ## Aero Fall — Jugar en el navegador
 
 Para jugar **sin descargar** el archivo cada vez:
@@ -33,4 +54,4 @@ cd mobile-game
 python3 -m http.server 8080
 ```
 
-Abre `http://localhost:8080` en el navegador.
+Abre `http://localhost:8080` (Aero Fall) o `http://localhost:8080/puzzle.html` (rompecabezas).
