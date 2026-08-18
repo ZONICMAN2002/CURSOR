@@ -8,8 +8,6 @@ Juego de rompecabezas con 5 fotos del equipo Financiera Horizontes y dificultade
 
 Abre: **https://zonicman2002.github.io/CURSOR/puzzle.html**
 
-(Si el enlace no carga, activa Pages una vez: **Settings → Pages → Branch `gh-pages` / root**.)
-
 ### Instalar APK en Android
 
 Ver `android-puzzle/README.md` — compila con Android Studio o `./gradlew assembleDebug`.
@@ -31,6 +29,8 @@ Para jugar **sin descargar** el archivo cada vez:
 1. Ve a **Settings** → **Pages** en el repositorio
 2. En **Build and deployment** → **Source**, elige **GitHub Actions**
 3. Guarda los cambios
+
+El workflow publica los juegos en cada push a `main`.
 
 ### Paso 2 — Abre el juego
 
