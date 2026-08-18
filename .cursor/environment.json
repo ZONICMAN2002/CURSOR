@@ -1,0 +1,10 @@
+{
+  "name": "Aero Fall (mobile-game)",
+  "ports": [8080],
+  "terminals": [
+    {
+      "name": "game-server",
+      "command": "cd mobile-game && python3 -m http.server 8080"
+    }
+  ]
+}
