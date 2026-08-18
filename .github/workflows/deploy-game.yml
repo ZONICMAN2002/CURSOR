@@ -3,10 +3,6 @@ name: Deploy mobile games to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - 'mobile-game/**'
-      - 'android-puzzle/app/src/main/res/drawable/puzzle_photo_*.jpg'
-      - '.github/workflows/deploy-game.yml'
   workflow_dispatch:
 
 permissions:
