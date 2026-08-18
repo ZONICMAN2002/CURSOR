@@ -6,8 +6,9 @@ Juego de rompecabezas con 5 fotos del equipo Financiera Horizontes y dificultade
 
 ### Jugar en el navegador (teléfono)
 
-1. Activa **GitHub Pages** con fuente **GitHub Actions** (Settings → Pages).
-2. Abre: **https://zonicman2002.github.io/CURSOR/puzzle.html**
+Abre: **https://zonicman2002.github.io/CURSOR/puzzle.html**
+
+(Si el enlace no carga, activa Pages una vez: **Settings → Pages → Branch `gh-pages` / root**.)
 
 ### Instalar APK en Android
 
